@@ -8,33 +8,26 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigInteger;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
+import org.apache.commons.collections4.map.LRUMap;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import x.commons.fileupload.FileManager;
+import x.commons.fileupload.FileSaveException;
 
 public class LocalFSFileManager implements FileManager {
 	
-	private static final int CACHE_SIZE = 10000;
-	
 	private String dataDir;
+	private LRUMap<String, String> filePathCache;
 	
-	private Map<String, String> filePathCache;
-	
-	@SuppressWarnings("serial")
 	public LocalFSFileManager(String dataDir) {
+		this(dataDir, 10000);
+	}
+	
+	public LocalFSFileManager(String dataDir, int nsCacheSize) {
 		this.dataDir = dataDir;
-		
-		this.filePathCache = new LinkedHashMap<String, String>(CACHE_SIZE + 1, 1.0f, true) {
-			@Override
-			protected boolean removeEldestEntry(
-					Map.Entry<String, String> eldest) {
-				return size() > CACHE_SIZE;
-			}
-		};
+		this.filePathCache = new LRUMap<String, String>(nsCacheSize);
 	}
 	
 	@Override
@@ -49,7 +42,7 @@ public class LocalFSFileManager implements FileManager {
 	}
 
 	@Override
-	public boolean saveFile(String md5, InputStream in) throws FileSavingException {
+	public boolean saveFile(String md5, InputStream in) throws FileSaveException {
 		String absPath = this.calculateAbsolutePathForFile(md5);
 		File file = new File(absPath);
 		if (file.exists()) { // 文件已存在，退出
@@ -62,7 +55,7 @@ public class LocalFSFileManager implements FileManager {
 			out = new FileOutputStream(file);
 			IOUtils.copy(in, out);
 		} catch (IOException e) {
-			throw new FileSavingException(e);
+			throw new FileSaveException(e);
 		} finally {
 			IOUtils.closeQuietly(out);
 		}
@@ -70,23 +63,26 @@ public class LocalFSFileManager implements FileManager {
 	}
 
 	@Override
-	public InputStream getFileInputStream(String md5) throws FileNotFoundException {
+	public InputStream getFileInputStream(String md5) {
 		String absPath = this.calculateAbsolutePathForFile(md5);
-		return new FileInputStream(absPath);
+		try {
+			return new FileInputStream(absPath);
+		} catch (FileNotFoundException e) {
+			return null;
+		}
 	}
 	
 	@Override
-	public File getFile(String md5) throws FileNotFoundException {
+	public File getFile(String md5) {
 		String absPath = this.calculateAbsolutePathForFile(md5);
 		File file = new File(absPath);
 		if (!file.exists()) {
-			throw new FileNotFoundException(file.getAbsolutePath());
+			return null;
 		}
 		return file;
 	}
 	
 	protected String calculateAbsolutePathForFile(String md5) {
-		
 		String absPath = this.filePathCache.get(md5);
 		if (absPath != null) {
 			return absPath;
@@ -97,19 +93,20 @@ public class LocalFSFileManager implements FileManager {
 		String sec3 = md5.substring(16, 24);
 		String sec4 = md5.substring(24);
 		
-		int mod1 = new BigInteger(sec1, 16).mod(new BigInteger("100")).intValue();
-		int mod2 = new BigInteger(sec2, 16).mod(new BigInteger("100")).intValue();
-		int mod3 = new BigInteger(sec3, 16).mod(new BigInteger("100")).intValue();
-		int mod4 = new BigInteger(sec4, 16).mod(new BigInteger("100")).intValue();
+		int mod1 = new BigInteger(sec1, 16).mod(new BigInteger("FF", 16)).intValue();
+		int mod2 = new BigInteger(sec2, 16).mod(new BigInteger("FF", 16)).intValue();
+		int mod3 = new BigInteger(sec3, 16).mod(new BigInteger("FF", 16)).intValue();
+		int mod4 = new BigInteger(sec4, 16).mod(new BigInteger("FF", 16)).intValue();
 		
-		String path1 = String.format("%02d", mod1);
-		String path2 = String.format("%02d", mod2);
-		String path3 = String.format("%02d", mod3);
-		String path4 = String.format("%02d", mod4);
+		String path1 = String.format("%02x", mod1);
+		String path2 = String.format("%02x", mod2);
+		String path3 = String.format("%02x", mod3);
+		String path4 = String.format("%02x", mod4);
 		
 		absPath = StringUtils.join(new String[] {this.dataDir, path1, path2, path3, path4, md5}, File.separator);
 		this.filePathCache.put(md5, absPath);
 		
 		return absPath;
 	}
+	
 }

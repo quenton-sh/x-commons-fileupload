@@ -10,7 +10,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import x.commons.fileupload.FileManager.FileSavingException;
+import x.commons.fileupload.FileSaveException;
 
 public class LocalFSFileManagerTest {
 
@@ -38,7 +38,7 @@ public class LocalFSFileManagerTest {
 	}
 	
 	@Test
-	public void saveFile() throws FileNotFoundException, FileSavingException {
+	public void saveFile() throws FileNotFoundException, FileSaveException {
 		sug.saveFile(md5, new FileInputStream(testFile));
 	}
 	

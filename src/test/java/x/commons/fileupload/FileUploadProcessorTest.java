@@ -2,11 +2,9 @@ package x.commons.fileupload;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -51,7 +49,8 @@ public class FileUploadProcessorTest {
 		// over quota:
 		FileUploadProcessor sug = factory.newFileUploadProcessor();
 		InputStream in = this.getClass().getResourceAsStream("/testdata-big.txt");
-		int size = sug.uploadToTmpFile(in);
+		sug.uploadToTmpFile(in);
+		int size = sug.getSize();
 		assertTrue(size == -1);
 		in.close();
 
@@ -60,7 +59,8 @@ public class FileUploadProcessorTest {
 		String absFilePath = this.getClass().getResource("/testdata-small1.txt").getPath();
 		String fileContent = FileUtils.readFileToString(new File(absFilePath));
 		in = new FileInputStream(absFilePath);
-		size = sug.uploadToTmpFile(in);
+		sug.uploadToTmpFile(in);
+		size = sug.getSize();
 		assertTrue(size > 20);
 		
 		String tmpFileContent = new String(IOUtils.toByteArray(sug.getTmpFileInputStream()), "UTF-8");
@@ -81,12 +81,10 @@ public class FileUploadProcessorTest {
 		md5 = sug.getMD5();
 		sug.drop();
 		System.gc();
-		try {
-			sug.getFileManager().getFileInputStream(md5);
-			fail("Accessing a non-exist file should throw a FileNotFoundException!");
-		} catch (FileNotFoundException e) {
-			// that's right
-		}
+		in = sug.getFileManager().getFileInputStream(md5);
+		assertTrue(in == null);
+		File f = sug.getFileManager().getFile(md5);
+		assertTrue(f == null);
 	}
 	
 	@AfterClass
